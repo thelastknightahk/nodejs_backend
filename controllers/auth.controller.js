@@ -1,4 +1,4 @@
- const bcrypt = require("bcryptjs");
+const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
 const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
@@ -73,9 +73,16 @@ exports.login = asyncHandler(async (req, res) => {
     throw error;
   }
 
-  const accessToken = generateAccessToken({ id: user._id });
-  const refreshToken = generateRefreshToken({ id: user._id });
-
+  const accessToken = generateAccessToken({
+    id: user._id,
+    role: user.role,
+    tokenVersion: user.tokenVersion,
+  });
+  const refreshToken = generateRefreshToken({
+    id: user._id,
+    role: user.role,
+    tokenVersion: user.tokenVersion,
+  });
   user.refreshToken = refreshToken;
   await user.save();
 
@@ -91,7 +98,7 @@ exports.login = asyncHandler(async (req, res) => {
  * @route   POST /api/auth/refresh
  * @access  Public
  */
- exports.refreshToken = asyncHandler(async (req, res) => {
+exports.refreshToken = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
@@ -119,5 +126,31 @@ exports.login = asyncHandler(async (req, res) => {
     success: true,
     accessToken: newAccessToken,
     refreshToken: newRefreshToken,
+  });
+});
+
+/**
+ * @desc    Logout user (invalidate refresh token)
+ * @route   POST /api/auth/logout
+ * @access  Private
+ */
+exports.logout = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id);
+
+  if (!user) {
+    const error = new Error("User not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 🔥 REVOKE ALL ACCESS TOKENS
+  user.refreshToken = null;
+  user.tokenVersion += 1;
+
+  await user.save();
+
+  res.json({
+    success: true,
+    message: "Logged out successfully",
   });
 });
