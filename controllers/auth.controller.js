@@ -1,46 +1,77 @@
-const bcrypt = require("bcryptjs");
+ const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
 const User = require("../models/User");
+const asyncHandler = require("../utils/asyncHandler");
 const {
   generateAccessToken,
   generateRefreshToken,
 } = require("../utils/token");
 
-exports.register = async (req, res) => {
+/**
+ * @desc    Register new user
+ * @route   POST /api/auth/register
+ * @access  Public
+ */
+exports.register = asyncHandler(async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty())
-    return res.status(400).json({ errors: errors.array() });
+  if (!errors.isEmpty()) {
+    const error = new Error("Validation failed");
+    error.statusCode = 400;
+    error.details = errors.array();
+    throw error;
+  }
 
   const { email, password } = req.body;
 
   const existingUser = await User.findOne({ email });
-  if (existingUser)
-    return res.status(400).json({ message: "User already exists" });
+  if (existingUser) {
+    const error = new Error("User already exists");
+    error.statusCode = 400;
+    throw error;
+  }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = await User.create({
+  await User.create({
     email,
     password: hashedPassword,
   });
 
-  res.status(201).json({ message: "User registered successfully" });
-};
+  res.status(201).json({
+    success: true,
+    message: "User registered successfully",
+  });
+});
 
-exports.login = async (req, res) => {
+/**
+ * @desc    Login user
+ * @route   POST /api/auth/login
+ * @access  Public
+ */
+exports.login = asyncHandler(async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty())
-    return res.status(400).json({ errors: errors.array() });
+  if (!errors.isEmpty()) {
+    const error = new Error("Validation failed");
+    error.statusCode = 400;
+    error.details = errors.array();
+    throw error;
+  }
 
   const { email, password } = req.body;
 
   const user = await User.findOne({ email });
-  if (!user)
-    return res.status(400).json({ message: "Invalid credentials" });
+  if (!user) {
+    const error = new Error("Invalid credentials");
+    error.statusCode = 401;
+    throw error;
+  }
 
   const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch)
-    return res.status(400).json({ message: "Invalid credentials" });
+  if (!isMatch) {
+    const error = new Error("Invalid credentials");
+    error.statusCode = 401;
+    throw error;
+  }
 
   const accessToken = generateAccessToken({ id: user._id });
   const refreshToken = generateRefreshToken({ id: user._id });
@@ -48,19 +79,38 @@ exports.login = async (req, res) => {
   user.refreshToken = refreshToken;
   await user.save();
 
-  res.json({ accessToken, refreshToken });
-};
+  res.json({
+    success: true,
+    accessToken,
+    refreshToken,
+  });
+});
 
-exports.refreshToken = async (req, res) => {
+/**
+ * @desc    Refresh access token
+ * @route   POST /api/auth/refresh
+ * @access  Public
+ */
+exports.refreshToken = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
-  if (!refreshToken)
-    return res.status(401).json({ message: "Refresh token required" });
+  if (!refreshToken) {
+    const error = new Error("Refresh token required");
+    error.statusCode = 401;
+    throw error;
+  }
 
   const user = await User.findOne({ refreshToken });
-  if (!user)
-    return res.status(403).json({ message: "Invalid refresh token" });
+  if (!user) {
+    const error = new Error("Invalid refresh token");
+    error.statusCode = 403;
+    throw error;
+  }
 
   const accessToken = generateAccessToken({ id: user._id });
-  res.json({ accessToken });
-};
+
+  res.json({
+    success: true,
+    accessToken,
+  });
+});
