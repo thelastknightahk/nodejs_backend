@@ -91,7 +91,7 @@ exports.login = asyncHandler(async (req, res) => {
  * @route   POST /api/auth/refresh
  * @access  Public
  */
-exports.refreshToken = asyncHandler(async (req, res) => {
+ exports.refreshToken = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
@@ -107,10 +107,17 @@ exports.refreshToken = asyncHandler(async (req, res) => {
     throw error;
   }
 
-  const accessToken = generateAccessToken({ id: user._id });
+  // 🔄 ROTATE TOKENS
+  const newAccessToken = generateAccessToken({ id: user._id });
+  const newRefreshToken = generateRefreshToken({ id: user._id });
+
+  // 🗑️ Invalidate old refresh token
+  user.refreshToken = newRefreshToken;
+  await user.save();
 
   res.json({
     success: true,
-    accessToken,
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
   });
 });
